@@ -32,6 +32,7 @@ class SimulationInputs:
     charge_quantile: float
     discharge_quantile: float
     max_cycles_per_year: float
+    min_spread_eur_per_mwh: float
 
 def _validate_array_length(arr: np.ndarray, name: str, expected_len: int = HOURS_PER_YEAR) -> np.ndarray:
     arr = np.asarray(arr, dtype=float).reshape(-1)
@@ -231,8 +232,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                         continue
                     
                     # no negative spread charging (anti-arbitrage)
-                    MIN_SPREAD = 15  # €/MWh
-                    if pv_t < charge_input and (batt_sell_t - grid_buy_t) < MIN_SPREAD:
+                    if pv_t < charge_input and (batt_sell_t - grid_buy_t) < inputs.min_spread_eur_per_mwh:
                         continue
                 
                 elif delta_soc < -1e-12:
@@ -449,6 +449,7 @@ def app():
         cycle_cost = st.number_input("Coût de cycle batterie (EUR/MWh)", value=5.0)
         charge_quantile = st.slider("Quantile charge (%)", 0, 50, 20)
         discharge_quantile = st.slider("Quantile décharge (%)", 0, 50, 20)
+        min_spread = st.number_input("Minimum Spread for Arbitrage (€/MWh)", min_value=0.0, value=15.0, step=1.0)
         max_cycles = st.number_input("Cycles max / an", value=300.0)
 
     with col2:
@@ -625,6 +626,7 @@ def app():
             charge_quantile=charge_quantile,
             discharge_quantile=discharge_quantile,
             max_cycles_per_year=max_cycles,
+            min_spread_eur_per_mwh=min_spread,
         )
 
         with st.spinner("Optimisation économique annuelle en cours..."):
