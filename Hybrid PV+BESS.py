@@ -231,7 +231,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                         continue
                     
                     # no negative spread charging (anti-arbitrage)
-                    MIN_SPREAD = 10  # €/MWh
+                    MIN_SPREAD = 15  # €/MWh
                     if pv_t < charge_input and (batt_sell_t - grid_buy_t) < MIN_SPREAD:
                         continue
                 
