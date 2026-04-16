@@ -2,10 +2,10 @@ import io
 from dataclasses import dataclass
 from typing import Dict, Tuple
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import numpy as np
 import pandas as pd
 import streamlit as st
-import matplotlib.dates as mdates
 
 HOURS_PER_YEAR = 8760
 DEFAULT_YEAR = 2025  # année non bissextile
