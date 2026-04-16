@@ -9,10 +9,6 @@ import streamlit as st
 
 HOURS_PER_YEAR = 8760
 DEFAULT_YEAR = 2025  # année non bissextile
-# Assuming this is part of your graph plotting code
-# Set major locator and formatter for the x-axis
-ax1.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-ax1.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m %Hh"))
 
 @dataclass
 class SimulationInputs:
@@ -750,6 +746,10 @@ def app():
             ax1.axhline(0, linewidth=1)  # ligne zéro
             ax1.set_ylabel("Flux énergie (MWh)")
             ax1.set_xlabel("Date")
+            # Assuming this is part of your graph plotting code
+            # Set major locator and formatter for the x-axis
+            ax1.xaxis.set_major_locator(mdates.HourLocator(interval=6))
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m %Hh"))
 
             # --- Prix (axe secondaire) ---
             ax2 = ax1.twinx()
