@@ -239,10 +239,6 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     # 🚫 FILTRE QUANTILE CHARGE
                     if grid_charge > 1e-9 and grid_buy_t > charge_threshold:
                         continue
-                    
-                    # no negative spread charging (anti-arbitrage)
-                    if pv_t < charge_input and (batt_sell_t - grid_buy_t) < inputs.min_spread_eur_per_mwh:
-                        continue
                 
                 elif delta_soc < -1e-12:
                     # Décharge batterie
