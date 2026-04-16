@@ -53,10 +53,10 @@ def _read_single_column_csv(uploaded_file, expected_len: int = HOURS_PER_YEAR) -
     try:
         df = pd.read_csv(uploaded_file, header=None, dtype=str)
     except Exception:
-    try:
-        uploaded_file.seek(0)
-    except Exception:
-        pass
+        try:
+            uploaded_file.seek(0)
+        except Exception:
+            pass
     df = pd.read_csv(uploaded_file, header=None, dtype=str)
 
     if df.shape[1] == 0:
