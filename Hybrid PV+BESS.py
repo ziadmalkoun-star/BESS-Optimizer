@@ -343,81 +343,87 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
 
     stored_cost_basis_eur_per_mwh = 0.0
     
-    for t in range(T):
-        next_state = int(policy_next[t, state])
-        if next_state < 0:
-            raise RuntimeError(f"Policy failure at t={t}, state={state}")
+for t in range(T):
+    next_state = int(policy_next[t, state])
+    if next_state < 0:
+        raise RuntimeError(f"Policy failure at t={t}, state={state}")
 
-        delta_soc = soc_grid[next_state] - soc_grid[state]
-        soc[t + 1] = soc_grid[next_state]
-        # Reset cost basis if battery is empty
-        if soc[t + 1] <= 1e-9:
-            stored_cost_basis_eur_per_mwh = 0.0
+    day_idx = t // 24
+    if day_idx != current_day:
+        current_day = day_idx
+        daily_discharged_mwh = 0.0
 
-        pv_direct_candidate = pv[t]
-        pv_to_batt[t] = 0.0
-        grid_charge[t] = 0.0
-        discharge[t] = 0.0
+    soc_now = soc[state]
+    pv_direct_candidate = pv[t]
+    pv_to_batt[t] = 0.0
+    grid_charge[t] = 0.0
+    discharge[t] = 0.0
 
-        if delta_soc > 1e-12:
-            charge_input = delta_soc / inputs.eta_charge
-            pv_to_batt[t] = min(charge_input, pv[t])
-            grid_charge[t] = max(charge_input - pv_to_batt[t], 0.0)
-            pv_direct_candidate = pv[t] - pv_to_batt[t]
-        
-            total_charge_input = pv_to_batt[t] + grid_charge[t]
-        
-            if total_charge_input > 1e-9:
-                charge_price = (
-                    pv_to_batt[t] * pv_price[t]
-                    + grid_charge[t] * grid_buy[t]
-                ) / total_charge_input
-        
-                prev_soc = soc[t]
-                charged_soc = max(delta_soc, 0.0)
-        
-                if prev_soc + charged_soc > 1e-9:
-                    stored_cost_basis_eur_per_mwh = (
-                        prev_soc * stored_cost_basis_eur_per_mwh
-                        + charged_soc * charge_price
-                    ) / (prev_soc + charged_soc)
+    # -----------------------------
+    # 1) CHARGING: keep DP decision
+    # -----------------------------
+    delta_soc_dp = soc_grid[next_state] - soc_grid[state]
 
-            elif delta_soc < -1e-12:
-                proposed_discharge = (-delta_soc) * inputs.eta_discharge
-    
-                if batt_sell[t] >= discharge_threshold[t] and batt_sell[t] >= stored_cost_basis_eur_per_mwh + inputs.min_spread_eur_per_mwh:
-                    discharge[t] = proposed_discharge
-                else:
-                    discharge[t] = 0.0
+    if delta_soc_dp > 1e-12:
+        charge_input = delta_soc_dp / inputs.eta_charge
+        pv_to_batt[t] = min(charge_input, pv[t])
+        grid_charge[t] = max(charge_input - pv_to_batt[t], 0.0)
+        pv_direct_candidate = pv[t] - pv_to_batt[t]
 
-        day_idx = t // 24
-        if day_idx != current_day:
-            current_day = day_idx
-            daily_discharged_mwh = 0.0
+    # ----------------------------------------------------
+    # 2) DISCHARGING: HARD RULE if price in top 20% of day
+    # ----------------------------------------------------
+    if batt_sell[t] >= discharge_threshold[t]:
+        # maximum discharge allowed by SOC and power
+        max_discharge_by_soc = soc_now * inputs.eta_discharge
+        max_discharge_by_power = inputs.batt_power_mw * 1.0  # 1h timestep
 
-        remaining_daily_discharge = max(daily_discharge_limit_mwh - daily_discharged_mwh, 0.0)
-        if discharge[t] > remaining_daily_discharge:
-            discharge[t] = remaining_daily_discharge
+        # daily discharge limit
+        remaining_daily_discharge = max(
+            daily_discharge_limit_mwh - daily_discharged_mwh,
+            0.0
+        )
 
-        total_export = pv_direct_candidate + discharge[t]
-        if total_export > inputs.grid_export_limit_mw:
-            excess = total_export - inputs.grid_export_limit_mw
+        forced_discharge = min(
+            max_discharge_by_soc,
+            max_discharge_by_power,
+            remaining_daily_discharge
+        )
 
-            reduction_pv = min(excess, pv_direct_candidate)
-            pv_direct_candidate -= reduction_pv
-            excess -= reduction_pv
+        discharge[t] = max(forced_discharge, 0.0)
 
-            if excess > 0:
-                discharge[t] = max(discharge[t] - excess, 0.0)
+    # -------------------
+    # 3) GRID EXPORT CAP
+    # -------------------
+    total_export = pv_direct_candidate + discharge[t]
+    if total_export > inputs.grid_export_limit_mw:
+        excess = total_export - inputs.grid_export_limit_mw
 
-        pv_direct[t] = max(pv_direct_candidate, 0.0)
+        reduction_pv = min(excess, pv_direct_candidate)
+        pv_direct_candidate -= reduction_pv
+        excess -= reduction_pv
 
-        pv_direct_revenue[t] = pv_direct[t] * pv_price[t]
-        batt_sale_revenue[t] = discharge[t] * batt_sell[t]
-        grid_charge_cost[t] = grid_charge[t] * grid_buy[t]
+        if excess > 0:
+            discharge[t] = max(discharge[t] - excess, 0.0)
 
-        daily_discharged_mwh += discharge[t]
-        state = next_state
+    pv_direct[t] = max(pv_direct_candidate, 0.0)
+
+    # -------------------
+    # 4) UPDATE NEXT SOC
+    # -------------------
+    soc_next = soc_now + pv_to_batt[t] * inputs.eta_charge + grid_charge[t] * inputs.eta_charge - discharge[t] / inputs.eta_discharge
+    soc_next = min(max(soc_next, 0.0), inputs.batt_energy_mwh)
+
+    soc[t + 1] = soc_next
+
+    pv_direct_revenue[t] = pv_direct[t] * pv_price[t]
+    batt_sale_revenue[t] = discharge[t] * batt_sell[t]
+    grid_charge_cost[t] = grid_charge[t] * grid_buy[t]
+
+    daily_discharged_mwh += discharge[t]
+
+    # update state for next hour using nearest SOC grid point
+    state = nearest_state_index(soc_next)
 
     total_direct_pv_revenue = float(pv_direct_revenue.sum())
     total_batt_sale_revenue = float(batt_sale_revenue.sum())
