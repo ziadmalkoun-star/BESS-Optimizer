@@ -341,6 +341,8 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
     daily_discharged_mwh = 0.0
     current_day = 0
 
+    stored_cost_basis_eur_per_mwh = 0.0
+    
     for t in range(T):
         next_state = int(policy_next[t, state])
         if next_state < 0:
@@ -348,6 +350,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
 
         delta_soc = soc_grid[next_state] - soc_grid[state]
         soc[t + 1] = soc_grid[next_state]
+        # Reset cost basis if battery is empty
+        if soc[t + 1] <= 1e-9:
+            stored_cost_basis_eur_per_mwh = 0.0
 
         pv_direct_candidate = pv[t]
         pv_to_batt[t] = 0.0
@@ -359,9 +364,31 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
             pv_to_batt[t] = min(charge_input, pv[t])
             grid_charge[t] = max(charge_input - pv_to_batt[t], 0.0)
             pv_direct_candidate = pv[t] - pv_to_batt[t]
+        
+            total_charge_input = pv_to_batt[t] + grid_charge[t]
+        
+            if total_charge_input > 1e-9:
+                charge_price = (
+                    pv_to_batt[t] * pv_price[t]
+                    + grid_charge[t] * grid_buy[t]
+                ) / total_charge_input
+        
+                prev_soc = soc[t]
+                charged_soc = max(delta_soc, 0.0)
+        
+                if prev_soc + charged_soc > 1e-9:
+                    stored_cost_basis_eur_per_mwh = (
+                        prev_soc * stored_cost_basis_eur_per_mwh
+                        + charged_soc * charge_price
+                    ) / (prev_soc + charged_soc)
 
-        elif delta_soc < -1e-12:
-            discharge[t] = (-delta_soc) * inputs.eta_discharge
+            elif delta_soc < -1e-12:
+                proposed_discharge = (-delta_soc) * inputs.eta_discharge
+    
+                if batt_sell[t] >= discharge_threshold[t] and batt_sell[t] >= stored_cost_basis_eur_per_mwh + inputs.min_spread_eur_per_mwh:
+                    discharge[t] = proposed_discharge
+                else:
+                    discharge[t] = 0.0
 
         day_idx = t // 24
         if day_idx != current_day:
