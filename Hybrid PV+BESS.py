@@ -279,9 +279,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                         continue
 
                     # Rule 4: only charge if minimum spread is satisfied within the same day
-                    if pv_to_batt_candidate > 1e-9:
-                        if future_best_sell_same_day[t] < pv_price_t + inputs.min_spread_eur_per_mwh:
-                            continue
+                    pass
                     if grid_charge_candidate > 1e-9:
                         if future_best_sell_same_day[t] < grid_buy_t + inputs.min_spread_eur_per_mwh:
                             continue
