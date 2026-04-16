@@ -749,7 +749,7 @@ def app():
             # Assuming this is part of your graph plotting code
             # Set major locator and formatter for the x-axis
             ax1.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m %Hh"))
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Hh"))
 
             # --- Prix (axe secondaire) ---
             ax2 = ax1.twinx()
