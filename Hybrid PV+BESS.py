@@ -11,8 +11,8 @@ HOURS_PER_YEAR = 8760
 DEFAULT_YEAR = 2025  # année non bissextile
 # Assuming this is part of your graph plotting code
 # Set major locator and formatter for the x-axis
-ax.xaxis.set_major_locator(mdates.HourLocator())
-ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+ax1.xaxis.set_major_locator(mdates.HourLocator(interval=6))
+ax1.xaxis.set_major_formatter(mdates.DateFormatter("%d-%m %Hh"))
 
 @dataclass
 class SimulationInputs:
