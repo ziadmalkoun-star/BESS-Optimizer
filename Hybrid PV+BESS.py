@@ -489,8 +489,8 @@ def app():
         productible = st.number_input("Productible PV (kWh/kWc/an)", min_value=0.0, value=1200.0, step=10.0)
         grid_export_limit_mw = st.number_input("Limite injection réseau (MW)", min_value=0.0, value=pv_dc_mw, step=1.0)
         cycle_cost = st.number_input("Coût de cycle batterie (EUR/MWh)", value=5.0)
-        charge_quantile = st.slider("Quantile charge (%)", 0, 50, 20)
-        discharge_quantile = st.slider("Quantile décharge (%)", 0, 50, 20)
+        charge_quantile = st.slider("Quantile charge (%)", 0, 100, 20)
+        discharge_quantile = st.slider("Quantile décharge (%)", 0, 100, 80)
         min_spread = st.number_input("Minimum Spread for Arbitrage (€/MWh)", min_value=0.0, value=15.0, step=1.0)
         max_cycles_day = st.number_input("Cycles max / jour", min_value=0.0, value=1.0, step=0.1)
 
