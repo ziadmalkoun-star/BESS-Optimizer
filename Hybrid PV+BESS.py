@@ -151,6 +151,11 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
     pv = np.maximum(pv, 0.0)
     pv_price = _validate_array_length(inputs.pv_price, "Le prix PV")
     batt_sell = _validate_array_length(inputs.batt_sell_price, "Le prix de vente batterie")
+    lookahead_hours = 24  # you can tune this
+    future_best_sell = np.zeros(T, dtype=float)
+    for t in range(T):
+        t_end = min(T, t + lookahead_hours + 1)
+        future_best_sell[t] = np.max(batt_sell[t:t_end])
     grid_buy = _validate_array_length(inputs.grid_buy_price, "Le prix d'achat réseau")
     charge_threshold = np.percentile(grid_buy, inputs.charge_quantile)
     discharge_threshold = np.percentile(batt_sell, inputs.discharge_quantile)
@@ -236,10 +241,22 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     pv_to_batt = min(charge_input, pv_t)
                     grid_charge = max(charge_input - pv_to_batt, 0.0)
                     pv_direct_candidate = pv_t - pv_to_batt
-
-                    # 🚫 FILTRE QUANTILE CHARGE
+                
+                    # 1) grid charging allowed only when buy price is cheap enough
                     if grid_charge > 1e-9 and grid_buy_t > charge_threshold:
                         continue
+                
+                    # 2) spread rule for PV charging:
+                    # if I store PV, I give up selling it now at pv_price_t
+                    if pv_to_batt > 1e-9:
+                        if future_best_sell[t] < pv_price_t + inputs.min_spread_eur_per_mwh:
+                            continue
+                
+                    # 3) spread rule for grid charging:
+                    # only charge from grid if future sell price beats current buy price by min spread
+                    if grid_charge > 1e-9:
+                        if future_best_sell[t] < grid_buy_t + inputs.min_spread_eur_per_mwh:
+                            continue
                 
                 elif delta_soc < -1e-12:
                     # Décharge batterie
