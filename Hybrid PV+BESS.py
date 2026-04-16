@@ -245,7 +245,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     pv_to_batt = min(charge_input, pv_t)
                     grid_charge = max(charge_input - pv_to_batt, 0.0)
                     pv_direct_candidate = pv_t - pv_to_batt
-                
+                    
+                    discharge_candidate = 0.0
+                    
                     # 1) grid charging allowed only when buy price is cheap enough
                     if grid_charge > 1e-9 and grid_buy_t > charge_threshold:
                         continue
@@ -271,6 +273,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     if day_idx != current_day:
                         current_day = day_idx
                         daily_discharged_mwh = 0.0
+
+                    pv_to_batt = 0.0
+                    grid_charge = 0.0
                     
                     # Apply daily cycle limit
                     remaining_daily_discharge = max(daily_discharge_limit_mwh - daily_discharged_mwh, 0.0)
