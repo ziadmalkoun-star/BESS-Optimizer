@@ -275,8 +275,6 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     pv_direct_candidate = pv_t - pv_to_batt_candidate
 
                     # Rule 1: charge only when daily spot/price is <= charge percentile
-                    if pv_to_batt_candidate > 1e-9 and pv_price_t > charge_threshold_pv[t]:
-                        continue
                     if grid_charge_candidate > 1e-9 and grid_buy_t > charge_threshold_grid[t]:
                         continue
 
