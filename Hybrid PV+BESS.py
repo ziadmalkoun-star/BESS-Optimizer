@@ -154,9 +154,6 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
     T = len(pv)
     lookahead_hours = 24  # you can tune this
     future_best_sell = np.zeros(T, dtype=float)
-    daily_discharge_limit_mwh = inputs.max_cycles_per_day * inputs.batt_energy_mwh
-    daily_discharged_mwh = 0.0
-    current_day = 0
     for t in range(T):
         t_end = min(T, t + lookahead_hours + 1)
         future_best_sell[t] = np.max(batt_sell[t:t_end])
@@ -269,18 +266,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     discharge_candidate = (-delta_soc) * inputs.eta_discharge
                     pv_direct_candidate = pv[t]
                     # Reset daily counter
-                    day_idx = t // 24
-                    if day_idx != current_day:
-                        current_day = day_idx
-                        daily_discharged_mwh = 0.0
 
                     pv_to_batt = 0.0
                     grid_charge = 0.0
-                    
-                    # Apply daily cycle limit
-                    remaining_daily_discharge = max(daily_discharge_limit_mwh - daily_discharged_mwh, 0.0)
-                    if discharge_candidate > remaining_daily_discharge:
-                        discharge_candidate = remaining_daily_discharge
                     
                     # 🚫 FILTRE QUANTILE DECHARGE
                     if discharge_candidate > 1e-9 and batt_sell_t < discharge_threshold:
@@ -306,8 +294,6 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     if discharge_candidate > 0:
                         throughput = abs(delta_soc)
                         cycle_penalty = (throughput / inputs.batt_energy_mwh) * inputs.cycle_cost_eur_per_mwh
-                        
-                daily_discharged_mwh += discharge_candidate
                 
                 # --- Calcul du reward ---
                 reward = pv_direct_candidate * pv_price_t
@@ -348,7 +334,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
     batt_sale_revenue = np.zeros(T, dtype=float)
     grid_charge_cost = np.zeros(T, dtype=float)
     pv_direct_revenue = np.zeros(T, dtype=float)
-
+    daily_discharge_limit_mwh = inputs.max_cycles_per_day * inputs.batt_energy_mwh
+    daily_discharged_mwh = 0.0
+    current_day = 0
     for t in range(T):
         next_state = int(policy_next[t, state])
         if next_state < 0:
@@ -372,6 +360,15 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
             discharge[t] = (-delta_soc) * inputs.eta_discharge
             pv_direct_candidate = pv[t]
 
+        day_idx = t // 24
+        if day_idx != current_day:
+            current_day = day_idx
+            daily_discharged_mwh = 0.0
+
+        remaining_daily_discharge = max(daily_discharge_limit_mwh - daily_discharged_mwh, 0.0)
+        if discharge[t] > remaining_daily_discharge:
+            discharge[t] = remaining_daily_discharge
+        
         # --- CONTRAINTE GRID ---
         total_export = pv_direct_candidate + discharge[t]
 
@@ -392,6 +389,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
         grid_charge_cost[t] = grid_charge[t] * grid_buy[t]
 
         state = next_state
+        daily_discharged_mwh += discharge[t]
 
     total_direct_pv_revenue = float(pv_direct_revenue.sum())
     total_batt_sale_revenue = float(batt_sale_revenue.sum())
