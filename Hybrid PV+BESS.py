@@ -151,6 +151,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
     pv = np.maximum(pv, 0.0)
     pv_price = _validate_array_length(inputs.pv_price, "Le prix PV")
     batt_sell = _validate_array_length(inputs.batt_sell_price, "Le prix de vente batterie")
+    T = len(pv)
     lookahead_hours = 24  # you can tune this
     future_best_sell = np.zeros(T, dtype=float)
     for t in range(T):
