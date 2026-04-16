@@ -713,6 +713,7 @@ def app():
 
         with st.spinner("Optimisation économique annuelle en cours..."):
             result = optimize_dispatch_dp(sim_inputs)
+            st.write("Total discharged MWh:", float(result["discharge"].sum()))
 
         summary_df = build_summary_table(result, pv_stats)
         monthly_df = monthly_dataframe(result)
