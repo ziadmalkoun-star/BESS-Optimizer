@@ -766,7 +766,7 @@ def app():
             ax1.set_xlabel("Date")
         
             ax1.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%d %Hh"))
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Hh"))
         
             # --- Prix (axe secondaire) ---
             ax2 = ax1.twinx()
