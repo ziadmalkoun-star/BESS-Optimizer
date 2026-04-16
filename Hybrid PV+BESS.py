@@ -264,7 +264,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                 
                 elif delta_soc < -1e-12:
                     # Décharge batterie
-                    discharge[t] = (-delta_soc) * inputs.eta_discharge
+                    discharge_candidate = (-delta_soc) * inputs.eta_discharge
                     pv_direct_candidate = pv[t]
                     # Reset daily counter
                     day_idx = t // 24
@@ -274,8 +274,8 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     
                     # Apply daily cycle limit
                     remaining_daily_discharge = max(daily_discharge_limit_mwh - daily_discharged_mwh, 0.0)
-                    if discharge[t] > remaining_daily_discharge:
-                        discharge[t] = remaining_daily_discharge
+                    if discharge_candidate > remaining_daily_discharge:
+                        discharge_candidate = remaining_daily_discharge
                     
                     # 🚫 FILTRE QUANTILE DECHARGE
                     if discharge_candidate > 1e-9 and batt_sell_t < discharge_threshold:
@@ -302,7 +302,7 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                         throughput = abs(delta_soc)
                         cycle_penalty = (throughput / inputs.batt_energy_mwh) * inputs.cycle_cost_eur_per_mwh
                         
-                daily_discharged_mwh += discharge[t]
+                daily_discharged_mwh += discharge_candidate
                 
                 # --- Calcul du reward ---
                 reward = pv_direct_candidate * pv_price_t
