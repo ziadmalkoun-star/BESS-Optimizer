@@ -32,7 +32,7 @@ class SimulationInputs:
     cycle_cost_eur_per_mwh: float
     charge_quantile: float
     discharge_quantile: float
-    max_cycles_per_year: float
+    max_cycles_per_day: float
     min_spread_eur_per_mwh: float
 
 def _validate_array_length(arr: np.ndarray, name: str, expected_len: int = HOURS_PER_YEAR) -> np.ndarray:
@@ -154,6 +154,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
     T = len(pv)
     lookahead_hours = 24  # you can tune this
     future_best_sell = np.zeros(T, dtype=float)
+    daily_discharge_limit_mwh = inputs.max_cycles_per_day * inputs.batt_energy_mwh
+    daily_discharged_mwh = 0.0
+    current_day = 0
     for t in range(T):
         t_end = min(T, t + lookahead_hours + 1)
         future_best_sell[t] = np.max(batt_sell[t:t_end])
@@ -261,13 +264,23 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                 
                 elif delta_soc < -1e-12:
                     # Décharge batterie
-                    discharge_candidate = (-delta_soc) * inputs.eta_discharge
-                    pv_direct_candidate = pv_t
+                    discharge[t] = (-delta_soc) * inputs.eta_discharge
+                    pv_direct_candidate = pv[t]
+                    # Reset daily counter
+                    day_idx = t // 24
+                    if day_idx != current_day:
+                        current_day = day_idx
+                        daily_discharged_mwh = 0.0
+                    
+                    # Apply daily cycle limit
+                    remaining_daily_discharge = max(daily_discharge_limit_mwh - daily_discharged_mwh, 0.0)
+                    if discharge[t] > remaining_daily_discharge:
+                        discharge[t] = remaining_daily_discharge
                     
                     # 🚫 FILTRE QUANTILE DECHARGE
                     if discharge_candidate > 1e-9 and batt_sell_t < discharge_threshold:
                         continue
-
+                    
                 # --- CONTRAINTE GRID ---
                 total_export = pv_direct_candidate + discharge_candidate
 
@@ -288,7 +301,9 @@ def optimize_dispatch_dp(inputs: SimulationInputs) -> Dict[str, np.ndarray]:
                     if discharge_candidate > 0:
                         throughput = abs(delta_soc)
                         cycle_penalty = (throughput / inputs.batt_energy_mwh) * inputs.cycle_cost_eur_per_mwh
-
+                        
+                daily_discharged_mwh += discharge[t]
+                
                 # --- Calcul du reward ---
                 reward = pv_direct_candidate * pv_price_t
                 
@@ -474,7 +489,7 @@ def app():
         charge_quantile = st.slider("Quantile charge (%)", 0, 50, 20)
         discharge_quantile = st.slider("Quantile décharge (%)", 0, 50, 20)
         min_spread = st.number_input("Minimum Spread for Arbitrage (€/MWh)", min_value=0.0, value=15.0, step=1.0)
-        max_cycles = st.number_input("Cycles max / an", value=300.0)
+        max_cycles_day = st.number_input("Cycles max / jour", min_value=0.0, value=1.0, step=0.1)
 
     with col2:
         pv_losses_pct = st.number_input("Pertes système PV (%)", min_value=0.0, max_value=100.0, value=8.0, step=0.5)
@@ -649,8 +664,8 @@ def app():
             cycle_cost_eur_per_mwh=cycle_cost,
             charge_quantile=charge_quantile,
             discharge_quantile=discharge_quantile,
-            max_cycles_per_year=max_cycles,
             min_spread_eur_per_mwh=min_spread,
+            max_cycles_per_day=max_cycles_day,
         )
 
         with st.spinner("Optimisation économique annuelle en cours..."):
