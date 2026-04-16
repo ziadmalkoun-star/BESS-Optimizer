@@ -45,36 +45,45 @@ def _validate_array_length(arr: np.ndarray, name: str, expected_len: int = HOURS
 def _read_single_column_csv(uploaded_file, expected_len: int = HOURS_PER_YEAR) -> np.ndarray:
     if uploaded_file is None:
         raise ValueError("Aucun fichier CSV fourni.")
-    # Lecture robuste : accepte CSV simple, avec séparateur virgule ou point-virgule
+
     try:
         uploaded_file.seek(0)
     except Exception:
         pass
-    try:
-        df = pd.read_csv(uploaded_file, header=None, dtype=str)
-    except Exception:
+
+    raw = uploaded_file.read()
+
+    if raw is None or raw == b"" or raw == "":
+        raise ValueError("Le fichier CSV est vide ou illisible.")
+
+    if isinstance(raw, bytes):
+        text = raw.decode("utf-8-sig", errors="replace")
+    else:
+        text = str(raw)
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    values = []
+    for line in lines:
+        # keep only first field if semicolon-separated
+        first_field = line.split(";")[0].strip()
+        first_field = first_field.replace(",", ".")
         try:
-            uploaded_file.seek(0)
-        except Exception:
-            pass
-    df = pd.read_csv(uploaded_file, header=None, dtype=str)
+            values.append(float(first_field))
+        except ValueError:
+            continue
 
-    if df.shape[1] == 0:
-        raise ValueError("Le CSV est vide.")
-
-    first_col = df.iloc[:, 0].astype(str).str.strip()
-    # Accepte les décimales avec virgule
-    first_col = first_col.str.replace(",", ".", regex=False)
-    series = pd.to_numeric(first_col, errors="coerce").dropna()
-    if len(series) != expected_len:
+    if len(values) != expected_len:
         raise ValueError(
             f"Le CSV doit contenir exactement {expected_len} lignes numériques dans la première colonne. "
-            f"Reçu: {len(series)}."
+            f"Reçu: {len(values)}."
         )
 
-    arr = series.to_numpy(dtype=float)
+    arr = np.array(values, dtype=float)
+
     if np.any(~np.isfinite(arr)):
         raise ValueError("Le CSV contient des valeurs non finies.")
+
     return arr
     
 def _make_flat_curve(value: float, expected_len: int = HOURS_PER_YEAR) -> np.ndarray:
