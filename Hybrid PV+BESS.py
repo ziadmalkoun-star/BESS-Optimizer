@@ -722,53 +722,71 @@ def app():
                 (hourly_df["datetime"] >= start_date) &
                 (hourly_df["datetime"] < end_date)
             ].copy()
-
+        
             fig, ax1 = plt.subplots(figsize=(12, 5))
-
-            # --- Aires empilées (flux sortants vers réseau) ---
-            ax1.stackplot(
+        
+            # --- PV direct en aire ---
+            ax1.fill_between(
                 df["datetime"],
+                0,
                 df["pv_direct_mwh"],
-                df["battery_discharge_mwh"],
-                labels=["PV → Réseau", "Batterie → Réseau"],
+                label="PV → Réseau",
                 alpha=0.8
             )
-
-            # --- Aires négatives (charges batterie) ---
-            ax1.stackplot(
+        
+            # --- Flux batterie en barres ---
+            bar_width = 0.03  # largeur en jours matplotlib
+        
+            ax1.bar(
+                df["datetime"],
+                df["battery_discharge_mwh"],
+                width=bar_width,
+                label="Batterie → Réseau",
+                alpha=0.9
+            )
+        
+            ax1.bar(
                 df["datetime"],
                 -df["pv_to_battery_mwh"],
-                -df["grid_charge_mwh"],
-                labels=["PV → Batterie", "Réseau → Batterie"],
-                alpha=0.5
+                width=bar_width,
+                label="PV → Batterie",
+                alpha=0.7
             )
-
-            ax1.axhline(0, linewidth=1)  # ligne zéro
+        
+            ax1.bar(
+                df["datetime"],
+                -df["grid_charge_mwh"],
+                width=bar_width,
+                label="Réseau → Batterie",
+                alpha=0.7
+            )
+        
+            ax1.axhline(0, linewidth=1)
             ax1.set_ylabel("Flux énergie (MWh)")
             ax1.set_xlabel("Date")
-            # Assuming this is part of your graph plotting code
-            # Set major locator and formatter for the x-axis
+        
             ax1.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%Hh"))
-
+            ax1.xaxis.set_major_formatter(mdates.DateFormatter("%d %Hh"))
+        
             # --- Prix (axe secondaire) ---
             ax2 = ax1.twinx()
             ax2.plot(
                 df["datetime"],
-                df["pv_price_eur_per_mwh"],  # spot price
+                df["pv_price_eur_per_mwh"],
                 linestyle="--",
                 alpha=0.7,
                 label="Prix spot"
             )
             ax2.set_ylabel("Prix (EUR/MWh)")
-
+        
             # --- Légende combinée ---
             lines_1, labels_1 = ax1.get_legend_handles_labels()
             lines_2, labels_2 = ax2.get_legend_handles_labels()
             ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper right")
-
+        
             ax1.set_title("Dispatch énergétique - 3 premiers jours de juin")
-
+        
+            fig.autofmt_xdate()
             st.pyplot(fig)
             plt.close(fig)
 
